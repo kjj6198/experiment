@@ -5,3 +5,8 @@
 - arduino timer
 - MQTT communication
 
+## ble_test
+
+* all led on -> 24mA
+* all led off -> 15mA
+* save power mode -> 20uA
