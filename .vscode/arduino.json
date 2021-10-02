@@ -1,0 +1,6 @@
+{
+    "configuration": "cpu=atmega328",
+    "board": "arduino:avr:nano",
+    "sketch": "src/ble_test/main.ino",
+    "port": "/dev/cu.usbserial-1310"
+}
