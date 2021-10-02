@@ -1,4 +1,5 @@
 #include "LedControl.h"
+#include "pomodoro.h"
 
 /*
  pin 12 is connected to the DataIn 
@@ -7,6 +8,7 @@
  We have only a single MAX72XX.
  */
 LedControl lc = LedControl(4, 6 ,5 ,1);
+Pomodoro pomodoro = Pomodoro();
 
 volatile int count = 0;
 volatile int mat[] = {
@@ -24,32 +26,24 @@ volatile int currI = 0;
 volatile int currJ = 0;
 volatile int state = 0;
 
-void startTimer() {
-	cli();
-	TCCR1A = 0;
-	TCCR1B = 0;
-	TCNT1 = 0;
-	OCR1A = 100;
-	TIMSK1 |= (1 << OCIE1A);
-	TCCR1A |= (1 << WGM12);
-	TCCR1B |= (1 << CS10) | (1 << CS12);
-	sei(); 
+void callback() {
+  Serial.println(pomodoro.get_countdown());
+}
+
+void complete(pomodoro_state state) {
+  if (state == pomodoro_state::rest) {
+    Serial.println("now let's get a rest");
+  } else if (state == pomodoro_state::idle) {
+    Serial.println("You just completed a pomodoro, nice!");
+  }
 }
 
 void setup() {
-  startTimer();
-  /*
-   The MAX72XX is in power-saving mode on startup,
-   we have to do a wakeup call
-   */
-  lc.shutdown(0, false);
-  /* Set the brightness to a medium values */
-  lc.setIntensity(0, 0.2);
-  /* and clear the display */
-  lc.clearDisplay(0);
-  render();
-  
   Serial.begin(115200);
+  pomodoro.set_per_second_callback(callback);
+  pomodoro.set_timesup_callback(complete);
+
+  pomodoro.start(15, pomodoro_state::working);
 }
 
 void render() {
@@ -77,16 +71,5 @@ void loop() {
 
 
 ISR(TIMER1_COMPA_vect) {
-  TCNT1 = 0;
-  if (count == 28) {
-    count = 0;
-    mat[currJ * 8 + currI] = 0;
-    if (currJ == 7) {
-      currI += 1;
-    }
-    currJ = (currJ + 1) % 8;
-    render();
-  }
-  
-  count++;
+  pomodoro.handle_timer_interrupt();
 }
