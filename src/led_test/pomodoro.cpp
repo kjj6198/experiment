@@ -61,22 +61,19 @@ void Pomodoro::set_per_second_callback(void (*fn)(void))
 
 void Pomodoro::pause()
 {
-	if (this->state == pomodoro_state::paused)
+	if (this->is_running())
 	{
-		return;
+		this->disable_timer();
 	}
-	this->state == pomodoro_state::paused;
-	this->disable_timer();
 }
 
 void Pomodoro::resume()
 {
-	if (this->state == pomodoro_state::working)
+	if (this->is_running())
 	{
 		return;
 	}
 
-	this->state == pomodoro_state::working;
 	this->enable_timer();
 }
 
@@ -98,8 +95,8 @@ pomodoro_state Pomodoro::get_state()
 	return this->state;
 }
 
-
-void Pomodoro::set_timesup_callback(void (*fn) (pomodoro_state state)) {
+void Pomodoro::set_timesup_callback(void (*fn)(pomodoro_state state))
+{
 	this->timesup_fn = fn;
 }
 
@@ -130,7 +127,6 @@ void Pomodoro::handle_timer_interrupt()
 		}
 		else if (this->state == pomodoro_state::rest)
 		{
-			this->state = pomodoro_state::paused;
 			if (this->timesup_fn != NULL)
 			{
 				this->timesup_fn(pomodoro_state::idle);
@@ -138,4 +134,16 @@ void Pomodoro::handle_timer_interrupt()
 			this->reset();
 		}
 	}
+}
+
+bool Pomodoro::is_running()
+{
+	if (
+			TCCR1B & (1 << CS12) == (1 << CS12) &&
+			TCCR1B & (1 << CS11) == (1 << CS11) &&
+			TCCR1B & (1 << CS10) == (1 << CS10))
+	{
+		return true;
+	}
+	return false;
 }

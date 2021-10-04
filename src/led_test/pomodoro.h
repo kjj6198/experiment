@@ -36,6 +36,7 @@ class Pomodoro {
 		int get_countdown();
 		int get_working_time();
 		int get_rest_time();
+		bool is_running();
 
 		// this function will be passed into interrupt handler (ISR)
 		// so be sure to not doing too much thing in callback function
