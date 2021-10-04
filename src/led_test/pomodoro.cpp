@@ -23,7 +23,7 @@ void Pomodoro::enable_timer()
 	cli();
 	TCCR1A = 0;
 	TCCR1B = 0;
-	OCR1A = 15625; // 1 secs
+	OCR1A = 1000; // 1 secs
 	TIMSK1 |= (1 << OCIE1A);
 	TCCR1A |= (1 << WGM12);
 	TCCR1B |= (1 << CS10) | (1 << CS12);

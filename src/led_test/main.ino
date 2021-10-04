@@ -3,8 +3,10 @@
 #include "SoftwareSerial.h"
 #include "packet.h"
 
+#define COUNT 120
 #define PIN_TX 5
 #define PIN_RX 4
+#define ledInterval(p) (p / 64)
 
 /*
  pin 12 is connected to the DataIn 
@@ -12,7 +14,8 @@
  pin 10 is connected to LOAD 
  We have only a single MAX72XX.
  */
-LedControl lc = LedControl(4, 6, 5, 1);
+LedControl lc = LedControl(12, 10, 11, 1);
+
 Pomodoro pomodoro = Pomodoro();
 SoftwareSerial ble_serial = SoftwareSerial(PIN_RX, PIN_TX);
 
@@ -34,11 +37,23 @@ volatile unsigned long curr = 0;
 
 void callback()
 {
-  Serial.println(pomodoro.get_countdown());
+  if (count >= 2) {
+    count = 0;
+    mat[currJ * 8 + currI] = 0;
+    if (currJ == 7)
+    {
+      currI += 1;
+    }
+    currJ = (currJ + 1) % 8;
+    render();
+  }
+
+  count++;
 }
 
 void complete(pomodoro_state state)
 {
+  
   if (state == pomodoro_state::rest)
   {
     Serial.println("now let's get a rest");
@@ -56,18 +71,43 @@ void complete(pomodoro_state state)
     ble_serial.write(data, 4);
     Serial.println("You just completed a pomodoro, nice!");
   }
+
+  for (int i = 0; i < 8; i++)
+  {
+    for (int j = 0; j < 8; j++)
+    {
+      mat[i * 8 + j] = 1;
+    }
+  }
+  currI = 0;
+  currJ = 0;
+}
+
+void render()
+{
+  for (int i = 0; i < 8; i++)
+  {
+    for (int j = 0; j < 8; j++)
+    {
+      lc.setLed(0, i, 7 - j, mat[i * 8 + j]);
+    }
+  }
 }
 
 void setup()
 {
+  lc.shutdown(0, false);
+  lc.setIntensity(0, 1);
+  lc.clearDisplay(0);
+  render();
   pinMode(2, INPUT_PULLUP);
-  Serial.begin(115200);
+  
+  Serial.begin(9600);
   ble_serial.begin(9600);
   pomodoro.set_per_second_callback(callback);
   pomodoro.set_timesup_callback(complete);
 
   attachInterrupt(digitalPinToInterrupt(2), handle_button_clicked, RISING);
-  pomodoro.start(15, pomodoro_state::working);
 }
 
 void handle_button_clicked()
@@ -87,25 +127,17 @@ void handle_button_clicked()
 
   if (state == pomodoro_state::idle)
   {
-    pomodoro.start(15, pomodoro_state::working);
+    pomodoro.start(COUNT, pomodoro_state::working);
   }
   else if (state == pomodoro_state::working || state == pomodoro_state::rest)
   {
-    if (pomodoro.is_running()) {
-      pomodoro.pause();
-    } else if (countdown != 0) {
-      pomodoro.resume();
-    } 
-  }
-}
-
-void render()
-{
-  for (int i = 0; i < 8; i++)
-  {
-    for (int j = 0; j < 8; j++)
+    if (pomodoro.is_running())
     {
-      lc.setLed(0, i, 7 - j, mat[i * 8 + j]);
+      pomodoro.pause();
+    }
+    else if (countdown != 0)
+    {
+      pomodoro.resume();
     }
   }
 }
@@ -126,15 +158,15 @@ void blinkOne()
 
 char c = ' ';
 
-inline void handle_command()
+inline void handle_command(uint8_t *d)
 {
   uint8_t data[4];
-  ble_serial.readBytes(data, 4);
+  // ble_serial.readBytes(data, 4);
 
   if (data[0] < 0x0a)
   {
     packet_t p;
-    parse_packet(data, &p);
+    parse_packet(d, &p);
     Serial.println(p.command);
 
     uint8_t ok[4] = {
@@ -142,7 +174,7 @@ inline void handle_command()
 
     if (p.command == "start")
     {
-      pomodoro.start(15, pomodoro_state::working);
+      pomodoro.start(COUNT, pomodoro_state::working);
       ble_serial.write(ok, 4);
     }
     else if (p.command == "pause")
@@ -175,12 +207,22 @@ inline void handle_command()
 }
 
 void loop()
-{
-
+{  
   // if (ble_serial.available())
   // {
-  //   handle_command();
+  //   uint8_t data[4];
+  //   ble_serial.readBytes(data, 4);
+  //   handle_command(data);
   // }
+
+  uint8_t data[4] = {
+    0x01, 0x00, 0x00, 0x00
+  };
+
+  // handle_command(data);
+  // pomodoro.start(COUNT, pomodoro_state::working);
+  // blinkOne();
+  delay(30000);
 }
 
 ISR(TIMER1_COMPA_vect)
