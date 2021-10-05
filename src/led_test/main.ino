@@ -34,26 +34,16 @@ volatile int currI = 0;
 volatile int currJ = 0;
 volatile int state = 0;
 volatile unsigned long curr = 0;
+volatile uint16_t timer_overflow_count = 0;
+volatile uint8_t tick = 0;
 
 void callback()
 {
-  if (count >= 2) {
-    count = 0;
-    mat[currJ * 8 + currI] = 0;
-    if (currJ == 7)
-    {
-      currI += 1;
-    }
-    currJ = (currJ + 1) % 8;
-    render();
-  }
 
-  count++;
 }
 
 void complete(pomodoro_state state)
 {
-  
   if (state == pomodoro_state::rest)
   {
     Serial.println("now let's get a rest");
@@ -71,16 +61,6 @@ void complete(pomodoro_state state)
     ble_serial.write(data, 4);
     Serial.println("You just completed a pomodoro, nice!");
   }
-
-  for (int i = 0; i < 8; i++)
-  {
-    for (int j = 0; j < 8; j++)
-    {
-      mat[i * 8 + j] = 1;
-    }
-  }
-  currI = 0;
-  currJ = 0;
 }
 
 void render()
@@ -96,6 +76,9 @@ void render()
 
 void setup()
 {
+  setupLedTimer(pomodoro_state::working);
+  pomodoro.set_per_second_callback(callback);
+  pomodoro.set_timesup_callback(complete);
   lc.shutdown(0, false);
   lc.setIntensity(0, 1);
   lc.clearDisplay(0);
@@ -104,8 +87,6 @@ void setup()
   
   Serial.begin(9600);
   ble_serial.begin(9600);
-  pomodoro.set_per_second_callback(callback);
-  pomodoro.set_timesup_callback(complete);
 
   attachInterrupt(digitalPinToInterrupt(2), handle_button_clicked, RISING);
 }
@@ -135,11 +116,12 @@ void handle_button_clicked()
     {
       pomodoro.pause();
     }
-    else if (countdown != 0)
+    else
     {
       pomodoro.resume();
     }
   }
+
 }
 
 void blinkOne()
@@ -225,7 +207,35 @@ void loop()
   delay(30000);
 }
 
+
+// FIXME: if timer2 is enable, then timer1 somehow doesn't work (stop counting)
+void setupLedTimer(pomodoro_state state) {
+  // cli();
+  // TCCR2A = 0;
+  // TCCR2B = 0;
+  // TCNT2 = 0;
+  // OCR2A = 255;
+  // TIMSK2 |= 1 << TOIE2;
+  // TCCR2A |= 1 << WGM21;
+  // TCCR2B |= (1 << CS22) | (1 << CS20);
+  // sei();
+}
+
+
+// ISR(TIMER2_OVF_vect) {
+//   if (tick == 255) {
+//     timer_overflow_count++;
+//   }
+//   tick = (tick + 1) % 256;
+//   char buf[40];
+//   sprintf(buf, "tick: %d, overflow: %d", tick, timer_overflow_count);
+//   Serial.println(buf);
+// }
+
+
 ISR(TIMER1_COMPA_vect)
 {
+  Serial.println("test");
   pomodoro.handle_timer_interrupt();
 }
+
