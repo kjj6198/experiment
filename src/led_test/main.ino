@@ -34,12 +34,14 @@ volatile int currI = 0;
 volatile int currJ = 0;
 volatile int state = 0;
 volatile unsigned long curr = 0;
-volatile uint16_t timer_overflow_count = 0;
+volatile int timer_overflow_count = 0;
+volatile int target_overflow_count = 0;
+volatile uint8_t remain_tick = 0;
 volatile uint8_t tick = 0;
 
 void callback()
 {
-
+  blinkOne();
 }
 
 void complete(pomodoro_state state)
@@ -63,6 +65,8 @@ void complete(pomodoro_state state)
   }
 }
 
+// this function will iterate matrix and set the leds
+// a potentional optimization would be to only update the leds that have changed
 void render()
 {
   for (int i = 0; i < 8; i++)
@@ -76,18 +80,20 @@ void render()
 
 void setup()
 {
-  setupLedTimer(pomodoro_state::working);
   pomodoro.set_per_second_callback(callback);
   pomodoro.set_timesup_callback(complete);
+
+  // needed to wake up the MAX72XX
   lc.shutdown(0, false);
   lc.setIntensity(0, 1);
   lc.clearDisplay(0);
   render();
-  pinMode(2, INPUT_PULLUP);
-  
+
   Serial.begin(9600);
   ble_serial.begin(9600);
 
+  setupLedTimerInterval(5);
+  pinMode(2, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(2), handle_button_clicked, RISING);
 }
 
@@ -121,11 +127,12 @@ void handle_button_clicked()
       pomodoro.resume();
     }
   }
-
 }
 
 void blinkOne()
 {
+  char c[20];
+  sprintf(c, "i: %d, j: %d", currI, currJ);
   if (state == 0)
   {
     state = 1;
@@ -189,7 +196,7 @@ inline void handle_command(uint8_t *d)
 }
 
 void loop()
-{  
+{
   // if (ble_serial.available())
   // {
   //   uint8_t data[4];
@@ -198,44 +205,58 @@ void loop()
   // }
 
   uint8_t data[4] = {
-    0x01, 0x00, 0x00, 0x00
-  };
+      0x01, 0x00, 0x00, 0x00};
 
   // handle_command(data);
   // pomodoro.start(COUNT, pomodoro_state::working);
-  // blinkOne();
-  delay(30000);
 }
-
 
 // FIXME: if timer2 is enable, then timer1 somehow doesn't work (stop counting)
-void setupLedTimer(pomodoro_state state) {
-  // cli();
-  // TCCR2A = 0;
-  // TCCR2B = 0;
-  // TCNT2 = 0;
-  // OCR2A = 255;
-  // TIMSK2 |= 1 << TOIE2;
-  // TCCR2A |= 1 << WGM21;
-  // TCCR2B |= (1 << CS22) | (1 << CS20);
-  // sei();
+// note: it turns out it's just because the interrupt is excuted too fast and
+// the serial just can't catch the message correctly.
+void setupLedTimerInterval(int interval)
+{
+  size_t cyclesOfOneSecond = (F_CPU / 1024);
+  size_t totalTicks = interval * cyclesOfOneSecond;
+  uint16_t overflowCount = totalTicks / 256;
+
+  TCCR2A = 0;
+  TCCR2B = 0;
+  
+  TCNT2 = 0;
+	OCR2A = 255;
+	TIMSK2 |= 1 << TOIE2;
+	TCCR2A |= 1 << WGM21;
+  TIFR2 = 1 << OCF2B;
+  target_overflow_count = overflowCount;
 }
 
+inline void updateLed()
+{
+  if (pomodoro.get_state() == pomodoro_state::working)
+  {
+    mat[currJ * 8 + currI] = 0;
+    if (currJ == 7)
+    {
+      currI += 1;
+    }
+    currJ = (currJ + 1) % 8;
+    render();
+  }
+}
 
-// ISR(TIMER2_OVF_vect) {
-//   if (tick == 255) {
-//     timer_overflow_count++;
-//   }
-//   tick = (tick + 1) % 256;
-//   char buf[40];
-//   sprintf(buf, "tick: %d, overflow: %d", tick, timer_overflow_count);
-//   Serial.println(buf);
-// }
-
+ISR(TIMER2_OVF_vect)
+{
+  if (timer_overflow_count == target_overflow_count)
+  { 
+    Serial.println("timer overflow");
+    timer_overflow_count = 0;
+    updateLed();
+  }
+  timer_overflow_count = ( timer_overflow_count +1 ) % (target_overflow_count + 1);
+}
 
 ISR(TIMER1_COMPA_vect)
 {
-  Serial.println("test");
   pomodoro.handle_timer_interrupt();
 }
-
