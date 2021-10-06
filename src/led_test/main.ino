@@ -92,7 +92,7 @@ void setup()
   Serial.begin(9600);
   ble_serial.begin(9600);
 
-  setupLedTimerInterval(5);
+  setupLedTimerInterval(ledInterval(COUNT));
   pinMode(2, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(2), handle_button_clicked, RISING);
 }
@@ -204,11 +204,10 @@ void loop()
   //   handle_command(data);
   // }
 
-  uint8_t data[4] = {
-      0x01, 0x00, 0x00, 0x00};
-
   // handle_command(data);
   // pomodoro.start(COUNT, pomodoro_state::working);
+  
+  
 }
 
 // FIXME: if timer2 is enable, then timer1 somehow doesn't work (stop counting)
@@ -216,8 +215,8 @@ void loop()
 // the serial just can't catch the message correctly.
 void setupLedTimerInterval(int interval)
 {
-  size_t cyclesOfOneSecond = (F_CPU / 1024);
-  size_t totalTicks = interval * cyclesOfOneSecond;
+  long cyclesOfOneSecond = (F_CPU / 1024);
+  long totalTicks = interval * cyclesOfOneSecond;
   uint16_t overflowCount = totalTicks / 256;
 
   TCCR2A = 0;
@@ -229,6 +228,8 @@ void setupLedTimerInterval(int interval)
 	TCCR2A |= 1 << WGM21;
   TIFR2 = 1 << OCF2B;
   target_overflow_count = overflowCount;
+  Serial.print("count:");
+  Serial.println(overflowCount);
 }
 
 inline void updateLed()
