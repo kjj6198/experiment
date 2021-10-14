@@ -44,20 +44,26 @@ volatile int target_overflow_count = 0;
 volatile uint8_t remain_tick = 0;
 volatile uint8_t tick = 0;
 
-void test() {
+void test()
+{
   blinkOne();
 }
 
 void callback()
 {
   int state = pomodoro.get_state();
-  if (state == pomodoro_state::working) {
+  if (state == pomodoro_state::working)
+  {
     digitalWrite(WORKING_LED_PIN, HIGH);
     digitalWrite(BREAK_LED_PIN, LOW);
-  } else if (state == pomodoro_state::rest) {
+  }
+  else if (state == pomodoro_state::rest)
+  {
     digitalWrite(WORKING_LED_PIN, LOW);
     digitalWrite(BREAK_LED_PIN, HIGH);
-  } else {
+  }
+  else
+  {
     digitalWrite(WORKING_LED_PIN, LOW);
     digitalWrite(BREAK_LED_PIN, LOW);
   }
@@ -88,13 +94,18 @@ void complete(pomodoro_state state)
     Serial.println("You just completed a pomodoro, nice!");
   }
 
-  if (state == pomodoro_state::working) {
+  if (state == pomodoro_state::working)
+  {
     digitalWrite(WORKING_LED_PIN, HIGH);
     digitalWrite(BREAK_LED_PIN, LOW);
-  } else if (state == pomodoro_state::rest) {
+  }
+  else if (state == pomodoro_state::rest)
+  {
     digitalWrite(WORKING_LED_PIN, LOW);
     digitalWrite(BREAK_LED_PIN, HIGH);
-  } else {
+  }
+  else
+  {
     digitalWrite(WORKING_LED_PIN, LOW);
     digitalWrite(BREAK_LED_PIN, LOW);
   }
@@ -184,39 +195,37 @@ void blinkOne()
 
 char c = ' ';
 
-inline void handle_command(uint8_t *d)
+void handle_command()
 {
-  uint8_t data[4];
-  ble_serial.readBytes(data, 4);
+  uint8_t d[4];
+  for (int i = 0; i < 4; i++)
+  {
+    d[i] = ble_serial.read();
+  }
 
-  if (data[0] < 0x0a)
+  if (d[0] < 0x0a)
   {
     packet_t p;
     parse_packet(d, &p);
     Serial.println(p.command);
-
     uint8_t ok[4] = {
         0x09, 0xff, 0xff, 0xff};
 
     if (p.command == "start")
     {
-      pomodoro.start(COUNT, pomodoro_state::working);
-      ble_serial.write(ok, 4);
+      pomodoro.start(POMODORO_TIME, pomodoro_state::working);
     }
     else if (p.command == "pause")
     {
       pomodoro.pause();
-      ble_serial.write(ok, 4);
     }
     else if (p.command == "resume")
     {
       pomodoro.resume();
-      ble_serial.write(ok, 4);
     }
     else if (p.command == "reset")
     {
       pomodoro.reset();
-      ble_serial.write(ok, 4);
     }
     else if (p.command == "ask")
     {
@@ -236,15 +245,10 @@ void loop()
 {
   if (ble_serial.available())
   {
-    uint8_t data[4];
-    ble_serial.readBytes(data, 4);
-    handle_command(data);
+    handle_command();
+    ble_serial.flush();
   }
-
   delay(100);
-
-  // handle_command(data);
-  // pomodoro.start(COUNT, pomodoro_state::working);
 }
 
 // FIXME: if timer2 is enable, then timer1 somehow doesn't work (stop counting)
@@ -260,9 +264,9 @@ void setupLedTimerInterval(float interval)
   TCCR2B = 0;
 
   TCNT2 = 0;
-	OCR2A = 255;
-	TIMSK2 |= 1 << TOIE2;
-	TCCR2A |= 1 << WGM21;
+  OCR2A = 255;
+  TIMSK2 |= 1 << TOIE2;
+  TCCR2A |= 1 << WGM21;
   TIFR2 = 1 << OCF2B;
   target_overflow_count = overflowCount;
   Serial.print("count:");
@@ -280,9 +284,12 @@ inline void updateLed()
     }
     currJ = (currJ + 1) % 8;
     render();
-  } else if (pomodoro.get_state() == pomodoro_state::rest) {
+  }
+  else if (pomodoro.get_state() == pomodoro_state::rest)
+  {
     mat[currJ * 8 + currI] = 1;
-    if (currJ == 0) {
+    if (currJ == 0)
+    {
       currI -= 1;
     }
     currJ = (currJ - 1) % 8;
@@ -293,11 +300,11 @@ inline void updateLed()
 ISR(TIMER2_OVF_vect)
 {
   if (timer_overflow_count == target_overflow_count)
-  { 
+  {
     Serial.println("timer overflow");
     updateLed();
   }
-  timer_overflow_count = ( timer_overflow_count +1 ) % (target_overflow_count + 1);
+  timer_overflow_count = (timer_overflow_count + 1) % (target_overflow_count + 1);
 }
 
 ISR(TIMER1_COMPA_vect)
