@@ -15,6 +15,7 @@ class Pomodoro {
 	private :
 		volatile int countdown;
 		int working_time;
+		int overflow_count;
 		int rest_time;
 		volatile pomodoro_state state;
 
@@ -22,6 +23,7 @@ class Pomodoro {
 		void disable_timer();
 		void enable_timer();
 		void (*timesup_fn) (pomodoro_state state);
+		void (*halfsec_fn) (void);
 		void (*persec_fn) (void);
 
 	public :
@@ -42,6 +44,7 @@ class Pomodoro {
 		// so be sure to not doing too much thing in callback function
 		void set_timesup_callback(void (*fn) (pomodoro_state state));
 		void set_per_second_callback(void (*fn) (void));
+		void set_half_second_callback(void (*fn) (void));
 
 		void handle_timer_interrupt();
 		

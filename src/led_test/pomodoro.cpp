@@ -3,14 +3,16 @@
 Pomodoro::Pomodoro()
 {
 	this->state = pomodoro_state::idle;
-	this->countdown = 10; // 60 * 30 as default
-	this->working_time = 5;
-	this->rest_time = 5;
+	this->countdown = 0; // 60 * 30 as default
+	// TODO: parameterize
+	this->working_time = 1800;
+	this->rest_time = 300;
+	this->overflow_count = 0;
 };
 
 void Pomodoro::disable_timer()
 {
-	cli();
+	cli();	
 	TCCR1B &= ~(1 << CS12);
 	TCCR1B &= ~(1 << CS11);
 	TCCR1B &= ~(1 << CS10);
@@ -26,7 +28,7 @@ void Pomodoro::enable_timer()
 	cli();
 	TCCR1A = 0;
 	TCCR1B = 0;
-	OCR1A = 15624; // 1 secs
+	OCR1A = 7812; // 1 secs
 	TIMSK1 |= (1 << OCIE1A);
 	TCCR1A |= (1 << WGM12);
 	TCCR1B |= (1 << CS10) | (1 << CS12);
@@ -104,40 +106,55 @@ void Pomodoro::set_timesup_callback(void (*fn)(pomodoro_state state))
 	this->timesup_fn = fn;
 }
 
+void Pomodoro::set_half_second_callback(void (*fn)(void))
+{
+	this->halfsec_fn = fn;
+}
+
 void Pomodoro::handle_timer_interrupt()
 {
 	TCNT1 = 0;
-	if (this->countdown > 0)
+	if (this->overflow_count == 1)
 	{
-		if (this->persec_fn != NULL)
+		if (this->countdown > 0)
 		{
-			persec_fn();
+			if (this->persec_fn != NULL)
+			{
+				persec_fn();
+			}
+			this->countdown -= 1;
 		}
-		this->countdown -= 1;
-	}
-	else if (this->countdown <= 0)
-	{
-		this->disable_timer();
+		else if (this->countdown <= 0)
+		{
+			this->disable_timer();
 
-		if (this->state == pomodoro_state::working)
-		{
-			this->state = pomodoro_state::rest;
-			if (this->timesup_fn != NULL)
+			if (this->state == pomodoro_state::working)
 			{
-				this->timesup_fn(pomodoro_state::rest);
+				this->state = pomodoro_state::rest;
+				if (this->timesup_fn != NULL)
+				{
+					this->timesup_fn(pomodoro_state::rest);
+				}
+				this->countdown = this->rest_time;
+				this->start(this->countdown, pomodoro_state::rest);
 			}
-			this->countdown = this->rest_time;
-			this->start(this->countdown, pomodoro_state::rest);
-		}
-		else if (this->state == pomodoro_state::rest)
-		{
-			if (this->timesup_fn != NULL)
+			else if (this->state == pomodoro_state::rest)
 			{
-				this->timesup_fn(pomodoro_state::idle);
+				if (this->timesup_fn != NULL)
+				{
+					this->timesup_fn(pomodoro_state::idle);
+				}
+				this->reset();
 			}
-			this->reset();
 		}
 	}
+
+	if (this->halfsec_fn != NULL)
+	{
+		halfsec_fn();
+	}
+
+	this->overflow_count = (this->overflow_count + 1) % 2;
 }
 
 bool Pomodoro::is_running()
