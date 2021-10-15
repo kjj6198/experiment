@@ -3,13 +3,14 @@
 #include "SoftwareSerial.h"
 #include "packet.h"
 
-#define POMODORO_TIME 25 * 60
-#define BREAK_TIME 5 * 60
+#define POMODORO_TIME 3 * 60
+#define BREAK_TIME 3 * 60
 #define COUNT 30
 #define PIN_TX 5
 #define PIN_RX 4
 #define WORKING_LED_PIN 7
 #define BREAK_LED_PIN 8
+#define BUZZER_PIN 13
 
 #define ledInterval(p) (p / 64)
 
@@ -68,10 +69,27 @@ void callback()
     digitalWrite(BREAK_LED_PIN, LOW);
   }
   Serial.println("second callback");
+
+  int remaining = pomodoro.get_countdown();
+  uint8_t l = remaining & 0xff;
+  uint8_t h = (remaining >> 8) & 0xff;
+
+  uint8_t res[4] = {
+      0x07, h, l, state};
+  ble_serial.write(res, 4);
+}
+
+void buzz() {
+  tone(BUZZER_PIN, 1200);
+  delay(1000);
+  tone(BUZZER_PIN, 1200);
+  delay(1000);
+  noTone(BUZZER_PIN);
 }
 
 void complete(pomodoro_state state)
 {
+  buzz();
   if (state == pomodoro_state::rest)
   {
     Serial.println("now let's get a rest");
@@ -147,34 +165,49 @@ void setup()
   attachInterrupt(digitalPinToInterrupt(2), handle_button_clicked, RISING);
 }
 
+void send_packet(int running)
+{
+  int remaining = pomodoro.get_countdown();
+  uint8_t state = pomodoro.get_state();
+  uint8_t l = remaining & 0xff;
+  uint8_t h = (remaining >> 8) & 0xff;
+  uint8_t is_running = running & 0x01;
+
+  uint8_t res[4] = {
+      0x07, h, l, is_running };
+
+  ble_serial.write(res, 4);
+}
+
 void handle_button_clicked()
 {
 
 #ifdef DEBUG
   Serial.println("trigger");
+  char buf2[20];
+  sprintf(buf2, "state: %d, countdown: %d", state, pomodoro.get_countdown());
 #endif
   int state = pomodoro.get_state();
   int countdown = pomodoro.get_countdown();
 
-  char buf2[20];
-  sprintf(buf2, "state: %d, countdown: %d", state, pomodoro.get_countdown());
-  Serial.println(buf2);
-
-  Serial.println(pomodoro.is_running());
-
   if (state == pomodoro_state::idle)
   {
+    currI = 0;
+    currJ = 0;
     pomodoro.start(POMODORO_TIME, pomodoro_state::working);
+    send_packet(1);
   }
   else if (state == pomodoro_state::working || state == pomodoro_state::rest)
   {
     if (pomodoro.is_running())
     {
       pomodoro.pause();
+      send_packet(0);
     }
     else
     {
       pomodoro.resume();
+      send_packet(1);
     }
   }
 }
@@ -211,8 +244,13 @@ void handle_command()
     uint8_t ok[4] = {
         0x09, 0xff, 0xff, 0xff};
 
+    char buffer[20];
+    
+
     if (p.command == "start")
     {
+      currI = 0;
+      currJ = 0;
       pomodoro.start(POMODORO_TIME, pomodoro_state::working);
     }
     else if (p.command == "pause")
@@ -259,6 +297,7 @@ void setupLedTimerInterval(float interval)
   long cyclesOfOneSecond = (F_CPU / 1024);
   long totalTicks = interval * cyclesOfOneSecond;
   uint16_t overflowCount = totalTicks / 256;
+  remain_tick = totalTicks % 256;
 
   TCCR2A = 0;
   TCCR2B = 0;
@@ -292,7 +331,14 @@ inline void updateLed()
     {
       currI -= 1;
     }
-    currJ = (currJ - 1) % 8;
+
+    if (currJ - 1 < 0) {
+      currJ = 7;
+    } else {
+      currJ = (currJ - 1) % 8;
+    }
+    
+    
     render();
   }
 }
