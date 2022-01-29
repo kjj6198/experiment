@@ -3,7 +3,7 @@
 #include "SoftwareSerial.h"
 #include "packet.h"
 
-#define POMODORO_TIME 3 * 60
+#define POMODORO_TIME 7 * 60
 #define BREAK_TIME 3 * 60
 #define COUNT 30
 #define PIN_TX 5

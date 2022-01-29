@@ -1,6 +1,6 @@
 {
     "configuration": "cpu=atmega328",
     "board": "arduino:avr:nano",
-    "sketch": "src/led_test/main.ino",
-    "port": "/dev/cu.usbserial-1310"
+    "sketch": "src/pomodoro/main.ino",
+    "port": "/dev/cu.usbserial-1120"
 }
